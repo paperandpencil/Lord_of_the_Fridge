@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<title>Minimal Flask Image Gallery</title>
+		<style>
+      .gallery img {
+				width: 200px;
+				height: 200px;
+				object-fit: cover;
+				margin: 5px;
+				border: 1px solid #ccc;
+				padding: 5px;
+      }
+    </style>
+</head>
+<body>
+	<h1>Upload New Image</h1>
+		<form method=post enctype=multipart/form-data>
+			<input type=file name=file>
+			<input type=submit value=Upload>
+			<p>https://www.pokemon.com/us/pokedex</p>
+		</form>
+
+  <h2>My Image Gallery</h2>
+	<div class="gallery">
+    {% for image in images %}
+    	<!-- Use url_for to correctly link to the static image file -->
+		<img src="{{ url_for('static', filename='images/' + image) }}" alt="{{ image }}">
+		{% endfor %}
+	</div>
+</body>
+</html>
