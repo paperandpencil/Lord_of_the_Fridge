@@ -1,4 +1,4 @@
-import os
+import os, shutil
 from flask import (
     Flask,
     render_template,
@@ -27,46 +27,59 @@ def allowed_file(filename):
     return "." in filename and filename.rsplit(".", 1)[1].lower() in ALLOWED_EXTENSIONS
 
 
-def is_valid_image(filename):
+def is_valid_image(file):
+    """Uses Pillow module to verify if a fileStorage object from flask request.files, is a valid image. If it is, then save to upload folder"""
     try:
-        img = Image.open(filename)
-        img.verify()
-        img.close()
-        with Image.open(filename) as img:
+        # determine if file is broken w/o actually decoding the data
+        # if file is broken, then raise exception
+        with Image.open(file.stream) as img:
+            img.verify()
+
+        # try to load data fully, to verify integrity
+        # if problem, then raise exception
+        with Image.open(file.stream) as img:
             img.load()
-        return True
+            if img.format not in ["JPEG", "PNG", "BMP", "GIF", "WEBP"]:
+                return redirect(url_for("index"))
+
+        filename = secure_filename(file.filename)  # sanitize! but why ???
+
+        # using the uploaded file's filename as-is, is a temporary situation
+        # todo, rename filename to timestamp_42intraLogin, to enable sorting for display
+        # answers 2 questions:
+        # (1) when was the item was deposited into the fridge, (2) by who
+
+        with Image.open(file.stream) as img:
+            # img.thumbnail((200, 200)) # resize to minimize space taken up by uploaded images?
+
+            # only saves the first frame! so animated gifs etc. will "fail" to animate...
+            img.save(os.path.join(app.config["UPLOAD_FOLDER"], filename))
+            return redirect(url_for("index"))
     except (IOError, SyntaxError, FileNotFoundError) as e:
         print(f"Invalid image or file error: {e}")
-        return False
+        return redirect(url_for("index"))
     except Exception as e:
         print(f"Unexpected error occurred: {e}")
-        return False
+        return redirect(url_for("index"))
 
 
 @app.route("/", methods=["GET", "POST"])
-# v1 / sanity check
-# def hello_world():
-# 	return "<p>Hello, World!</p>"
 def index():
-    # print(f"The secret key is: {app.config['TEST_SECRET']}")  # testing
-
     if request.method == "POST":
-        if "file" not in request.files:
+        if "file" not in request.files:  # no file part
             return redirect(request.url)
         file = request.files["file"]
-        if file.filename == "":
+        if file.filename == "":  # no selected file
             return redirect(request.url)
-        if is_valid_image(file.filename):  # else skip (& do nothing, silently...)
-            filename = secure_filename(file.filename)  # sanitize!, temporary situation
-            # todo, rename filename to timestamp_42intraLogin
-            # answers 2 questions:
-            # (1) when was the item was deposited into the fridge, (2) by who
-            file.save(os.path.join(app.config["UPLOAD_FOLDER"], filename))
-            return redirect(url_for("index"))
+        is_valid_image(file)
+        # Note "file" is a FileStorage object from request.files
+        # has attributes/methods: .filename, .stream, .save(path)
 
     # if GET, then just list images for gallery
     image_files = os.listdir(UPLOAD_FOLDER)  # list contents in UPLOAD_FOLDER
-    images = [f for f in image_files if f.endswith((".png", ".jpg", ".jpeg", ".gif"))]
+    images = [
+        f for f in image_files if f.endswith((".png", ".jpg", ".jpeg", ".gif", ".webp"))
+    ]
     return render_template("gallery.html", images=images)
     # TO DO, how to order the display of uploaded images, such that latest first?
 
